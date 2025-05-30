@@ -9,6 +9,7 @@ AutoTweet is a Python application that leverages the Llama 3 language model to g
 *   **Notification-based Confirmation:**
     *   Sends a push notification via a self-hosted or public `ntfy.sh` server to your device.
     *   Allows you to "Approve ✅", "Discard ❌", or "Re-generate 🔁" the tweet directly from the notification.
+* **Direct Posting Option:** A command-line argument (`--force-post`) allows bypassing the confirmation step for direct posting
 *   **Configurable Topics:** Easily customize the list of topics for tweet generation.
 *   **Adjustable Tweet Frequency:** Control how often the script attempts to generate and post a tweet.
 *   **CUDA Support:** Utilizes GPU for faster model inference if a CUDA-enabled GPU is available.
@@ -18,7 +19,7 @@ AutoTweet is a Python application that leverages the Llama 3 language model to g
 1.  **Model Loading:** The Llama 3 model and tokenizer are loaded from Hugging Face.
 2.  **Topic Selection:** A random topic is chosen from a predefined list.
 3.  **Tweet Generation:** A prompt is constructed, and the Llama 3 model generates a short technical tweet (under 280 characters) about the selected topic.
-4.  **Confirmation Request:** If `NTFY_CONFIRM_TOPIC` and `NTFY_RESPONSE_TOPIC` are set, a notification with action buttons is sent to the specified `ntfy.sh` topic. The script then listens on the response topic for your decision.
+4.  **Confirmation Request:** Unless `--force-post` is used, a notification with action buttons is sent to your configured `ntfy.sh` topic. The script then listens on the response topic for your decision. If `ntfy.sh` environment variables are not correctly set, the script will raise an error.
 5.  **Action Based on Confirmation:**
     *   **Approve:** The tweet is posted to X.
     *   **Discard:** The tweet is not posted.
@@ -62,7 +63,7 @@ AutoTweet is a Python application that leverages the Llama 3 language model to g
         X_BEARER_TOKEN="your_bearer_token"
         ```
 
-    *   **ntfy.sh Configuration:**
+    *   **ntfy.sh Configuration (Required, unless using `--force-post`):**
         ```
         NTFY_SERVER="https://ntfy.sh" # Optional, defaults to public ntfy.sh. Use your own if self-hosting.
         NTFY_CONFIRM_TOPIC="your_unique_confirm_topic_name" # e.g., autotweet_confirm_myuser
@@ -78,13 +79,18 @@ AutoTweet is a Python application that leverages the Llama 3 language model to g
 ## Usage
 
 1.  Ensure all prerequisites and environment variables are set up.
-2.  Run the main script:
-    ```bash
-    python main.py
-    ```
+2.  Run the main script: 
+    * **With ntfy.sh confirmation (default):**
+        Make sure your `ntfy.sh` environment variables are set.
+        ```bash
+        python main.py
+        ```
+    *   **To skip confirmation and post directly:**
+        ```bash
+        python main.py --force-post
+        ```
 3.  The script will start generating tweets.
-4.  If `ntfy.sh` is configured, subscribe to your `NTFY_CONFIRM_TOPIC` on your phone/device using the ntfy app or web client. You will receive notifications to approve, reject, or regenerate tweets.
-5.  If `ntfy.sh` is not configured, monitor the terminal for confirmation prompts.
+4.  If not using `--force-post`, subscribe to your `NTFY_CONFIRM_TOPIC` on your phone/device using the ntfy app or web client. You will receive notifications to approve, reject, or regenerate tweets.
 
 ## Configuration
 
