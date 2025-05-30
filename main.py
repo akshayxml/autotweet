@@ -4,10 +4,8 @@ import random
 import os
 import sys 
 import time
-import requests
-import json
-import uuid
 import tweepy
+from notification_handler import request_confirmation
 
 LLAMA3_MODEL_NAME = "meta-llama/Meta-Llama-3-8B-Instruct"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -19,12 +17,6 @@ CONSUMER_SECRET = os.environ.get("X_CONSUMER_SECRET")
 ACCESS_TOKEN = os.environ.get("X_ACCESS_TOKEN")
 ACCESS_TOKEN_SECRET = os.environ.get("X_ACCESS_TOKEN_SECRET")
 BEARER_TOKEN = os.environ.get("X_BEARER_TOKEN")
-
-NTFY_SERVER = "https://ntfy.sh"
-NTFY_CONFIRM_TOPIC = os.environ.get("NTFY_CONFIRM_TOPIC")
-NTFY_RESPONSE_TOPIC = os.environ.get("NTFY_RESPONSE_TOPIC")
-TWEET_CONFIRMATION_TIMEOUT_SECS = int(os.environ.get("TWEET_CONFIRMATION_TIMEOUT_SECS", 3000)) # 50 minutes default
-
 
 def load_llama3_model():
     """
@@ -83,7 +75,7 @@ def generate_technical_tweet(topic: str) -> str:
         raise RuntimeError("Model and tokenizer not loaded. Call load_llama3_model() first.")
 
     messages = [
-        {"role": "system", "content": "You are a concise, expert technical writer for Twitter. Your goal is to provide clear, actionable technical insights and tips. Keep tweets under 280 characters."},
+        {"role": "system", "content": "You are a concise, expert technical writer for Twitter. Your goal is to provide clear, actionable technical details, insights or tips. Keep tweets under 280 characters."},
         {"role": "user", "content": f"Suggest a crucial technical detail about {topic} for developers to know. Dont add 'Did you know' in the output"},
     ]
 
@@ -130,78 +122,6 @@ def post_process_llama3_output(raw_text: str) -> str:
         print(f"Error during post-processing: {e}. Returning raw text as fallback.")
         return raw_text.replace("<|eot_id|>", "").strip()
 
-def request_phone_confirmation_ntfy(tweet_text: str, confirmation_timeout_seconds: int) -> bool:
-    """
-    Requests confirmation via ntfy push notification to a phone.
-    Returns True if approved, False otherwise (rejected or timed out).
-    """
-    if not all([NTFY_SERVER, NTFY_CONFIRM_TOPIC, NTFY_RESPONSE_TOPIC]):
-        print("Ntfy server/topic environment variables not set. Falling back to terminal confirmation.")
-        user_input = input(f"Post tweet '{tweet_text[:70].replace('\n', ' ')}...'? (yes/no): ").strip().lower()
-        return user_input in ['yes', 'y']
-
-    confirmation_id = str(uuid.uuid4())
-    base_ntfy_url = NTFY_SERVER.rstrip('/')
-
-    message_payload = {
-        "topic": NTFY_CONFIRM_TOPIC,
-        "message": f"Approve tweet?\n\n---\n{tweet_text}\n---",
-        "title": "AutoTweet: Confirm Tweet",
-        "priority": 4, # Urgent
-        "tags": ["bell", "incoming_call"], # Suggests sound/vibration
-        "actions": [
-            {
-                "action": "http", "label": "Approve ✅",
-                "url": f"{base_ntfy_url}/{NTFY_RESPONSE_TOPIC}", "method": "POST",
-                "body": json.dumps({"id": confirmation_id, "decision": "approve"}),
-                "headers": {"Content-Type": "application/json", "X-Title": f"Approved tweet {confirmation_id[:8]}"}, "clear": True,
-            },
-            {
-                "action": "http", "label": "Reject ❌",
-                "url": f"{base_ntfy_url}/{NTFY_RESPONSE_TOPIC}", "method": "POST",
-                "body": json.dumps({"id": confirmation_id, "decision": "reject"}),
-                "headers": {"Content-Type": "application/json", "X-Title": f"Rejected tweet {confirmation_id[:8]}"}, "clear": True,
-            }
-        ]
-    }
-    try:
-        requests.post(base_ntfy_url, json=message_payload, timeout=10)
-        print(f"Confirmation request sent to ntfy topic '{base_ntfy_url}/{NTFY_CONFIRM_TOPIC}'. Waiting for response on '{base_ntfy_url}/{NTFY_RESPONSE_TOPIC}' for ID {confirmation_id[:8]}...")
-    except requests.exceptions.RequestException as e:
-        print(f"Error sending ntfy notification: {e}. Falling back to terminal confirmation.")
-        user_input = input(f"Ntfy send failed. Post tweet '{tweet_text[:70].replace('\n', ' ')}...' anyway? (yes/no): ").strip().lower()
-        return user_input in ['yes', 'y']
-
-    # Poll for response
-    start_time = time.time()
-    last_processed_ntfy_event_id = str(int(start_time) - 10) # Look back a few seconds initially
-
-    poll_url = f"{base_ntfy_url}/{NTFY_RESPONSE_TOPIC}/json"
-    try:
-        resp = requests.get(poll_url, stream=True)
-        approved = False
-        for line in resp.iter_lines():
-            if line:
-                event = json.loads(line.decode('utf-8'))
-                if event.get("event") == "message":
-                    message_payload = json.loads(event.get("message", "{}"))
-                    if message_payload.get("id") == confirmation_id:
-                        decision = message_payload.get("decision")
-                        print(f"Received decision via ntfy: '{decision}' for ID {confirmation_id[:8]}")
-                        return decision == "approve"
-    except requests.exceptions.ConnectionError as e:
-        print(f"Polling ntfy failed due to ConnectionError for URL {poll_url}: {e}. Retrying...")
-        time.sleep(5) # Wait before retrying connection issues
-    except requests.exceptions.Timeout as e:
-        print(f"Polling ntfy timed out for URL {poll_url}: {e}. Retrying...")
-        time.sleep(5) # Wait longer before retrying connection issues
-    except requests.exceptions.RequestException as e:
-        print(f"Error polling ntfy response: {e}. Retrying in 10s.")
-        time.sleep(10)
-
-    print(f"No response received via ntfy for ID {confirmation_id[:8]} within {confirmation_timeout_seconds}s. Tweet will not be posted.")
-    return False
-
 def main():
     """
     Main function to run the tweet generation process.
@@ -233,16 +153,19 @@ def main():
             tweet = generate_technical_tweet(selected_topic)
             print(f"\n--- Proposed Tweet for Twitter ---\n'{tweet}'")
 
-            confirmed_to_post = request_phone_confirmation_ntfy(tweet, TWEET_CONFIRMATION_TIMEOUT_SECS)
+            confirmed_to_post = request_confirmation(tweet)
 
-            if confirmed_to_post:
+            if confirmed_to_post == "approve":
                 print("Confirmation received. Posting tweet...")
                 response = x_client.create_tweet(text=tweet)
                 print("Tweet posted successfully!")
                 print(f"Tweet ID: {response.data['id']}")
                 print(f"Tweet Text: {response.data['text']}")
-            else:
-                print("Tweet posting cancelled or timed out.")
+            elif confirmed_to_post == "reject":
+                print("Tweet posting rejected by user.")
+            elif confirmed_to_post == "regenerate":
+                print("Re-generating new tweet as requested by user.")
+                continue
 
             print(f"Waiting for {TWEET_TIMEGAP_SECS} seconds before next cycle...")
             time.sleep(TWEET_TIMEGAP_SECS)
