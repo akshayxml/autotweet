@@ -6,17 +6,20 @@ import sys
 import time
 import tweepy
 from notification_handler import request_confirmation
+from dotenv import load_dotenv
+
+load_dotenv()
 
 LLAMA3_MODEL_NAME = "meta-llama/Meta-Llama-3-8B-Instruct"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 TWEET_TIMEGAP_SECS = 60 * 60 * 12 # 12 hours
 tokenizer = None
 generator = None
-CONSUMER_KEY = os.environ.get("X_CONSUMER_KEY")
-CONSUMER_SECRET = os.environ.get("X_CONSUMER_SECRET")
-ACCESS_TOKEN = os.environ.get("X_ACCESS_TOKEN")
-ACCESS_TOKEN_SECRET = os.environ.get("X_ACCESS_TOKEN_SECRET")
-BEARER_TOKEN = os.environ.get("X_BEARER_TOKEN")
+CONSUMER_KEY = os.getenv("X_CONSUMER_KEY")
+CONSUMER_SECRET = os.getenv("X_CONSUMER_SECRET")
+ACCESS_TOKEN = os.getenv("X_ACCESS_TOKEN")
+ACCESS_TOKEN_SECRET = os.getenv("X_ACCESS_TOKEN_SECRET")
+BEARER_TOKEN = os.getenv("X_BEARER_TOKEN")
 
 def load_llama3_model():
     """
@@ -130,7 +133,7 @@ def main():
         raise ValueError("Please set your X API credentials as environment variables.")
 
     force_post = len(sys.argv) > 1 and sys.argv[1] == "--force-post"
-    
+
     load_llama3_model()
 
     x_client = tweepy.Client(
@@ -167,9 +170,9 @@ def main():
                 print("Tweet posted successfully!")
                 print(f"Tweet ID: {response.data['id']}")
                 print(f"Tweet Text: {response.data['text']}")
-            elif confirmed_to_post == "reject":
+            elif confirmed_to_post_decision == "reject":
                 print("Tweet posting rejected by user.")
-            elif confirmed_to_post == "regenerate":
+            elif confirmed_to_post_decision == "regenerate":
                 print("Re-generating new tweet as requested by the user.")
                 continue
 

@@ -3,10 +3,13 @@ import time
 import requests
 import json
 import uuid
+from dotenv import load_dotenv
 
-NTFY_SERVER = os.environ.get("NTFY_SERVER", "https://ntfy.sh") # Added default
-NTFY_CONFIRM_TOPIC = os.environ.get("NTFY_CONFIRM_TOPIC")
-NTFY_RESPONSE_TOPIC = os.environ.get("NTFY_RESPONSE_TOPIC")
+load_dotenv()
+
+NTFY_SERVER = os.getenv("NTFY_SERVER", "https://ntfy.sh") # Added default
+NTFY_CONFIRM_TOPIC = os.getenv("NTFY_CONFIRM_TOPIC")
+NTFY_RESPONSE_TOPIC = os.getenv("NTFY_RESPONSE_TOPIC")
 
 def request_confirmation(tweet_text: str) -> str:
     """
