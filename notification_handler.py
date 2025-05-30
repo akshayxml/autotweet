@@ -8,15 +8,13 @@ NTFY_SERVER = os.environ.get("NTFY_SERVER", "https://ntfy.sh") # Added default
 NTFY_CONFIRM_TOPIC = os.environ.get("NTFY_CONFIRM_TOPIC")
 NTFY_RESPONSE_TOPIC = os.environ.get("NTFY_RESPONSE_TOPIC")
 
-def request_confirmation(tweet_text: str) -> str | None:
+def request_confirmation(tweet_text: str) -> str:
     """
     Requests confirmation via ntfy push notification to a phone.
-    Returns True if approved, False otherwise (rejected or timed out).
+    Returns the decision ('approve', 'reject', 'regenerate') or raises an error.
     """
     if not all([NTFY_SERVER, NTFY_CONFIRM_TOPIC, NTFY_RESPONSE_TOPIC]):
-        print("Ntfy server/topic environment variables not set. Falling back to terminal confirmation.")
-        user_input = input(f"Post tweet '{tweet_text[:70].replace('\n', ' ')}...'? (yes/no): ").strip().lower()
-        return user_input in ['yes', 'y']
+        raise ValueError("NTFY_SERVER, NTFY_CONFIRM_TOPIC, and NTFY_RESPONSE_TOPIC environment variables must be set for ntfy confirmation.")
 
     confirmation_id = str(uuid.uuid4())
     base_ntfy_url = NTFY_SERVER.rstrip('/')
@@ -52,9 +50,7 @@ def request_confirmation(tweet_text: str) -> str | None:
         requests.post(base_ntfy_url, json=message_payload, timeout=10)
         print(f"Confirmation request sent to ntfy topic '{base_ntfy_url}/{NTFY_CONFIRM_TOPIC}'. Waiting for response on '{base_ntfy_url}/{NTFY_RESPONSE_TOPIC}' for ID {confirmation_id[:8]}...")
     except requests.exceptions.RequestException as e:
-        print(f"Error sending ntfy notification: {e}. Falling back to terminal confirmation.")
-        user_input = input(f"Ntfy send failed. Post tweet '{tweet_text[:70].replace('\n', ' ')}...' anyway? (yes/no): ").strip().lower()
-        return user_input in ['yes', 'y']
+        raise ConnectionError(f"Error sending ntfy notification to {base_ntfy_url}: {e}")
 
     poll_url = f"{base_ntfy_url}/{NTFY_RESPONSE_TOPIC}/json"
     try:
@@ -76,10 +72,9 @@ def request_confirmation(tweet_text: str) -> str | None:
         print(f"Polling ntfy timed out for URL {poll_url}: {e}. Retrying...")
         time.sleep(5)
     except requests.exceptions.RequestException as e:
-        print(f"Error polling ntfy response: {e}. Retrying in 10s.")
-        time.sleep(10)
+        raise ConnectionError(f"Error polling ntfy response from {poll_url}: {e}")
 
-    return False
+    raise TimeoutError(f"No response received on ntfy topic {poll_url} for ID {confirmation_id[:8]} within the expected timeframe.")
 
 if __name__ == '__main__':
     # Example usage (optional, for testing notification_handler.py directly)
@@ -94,5 +89,4 @@ if __name__ == '__main__':
         elif user_response == "regenerate":
             print("REGENERATE tweet request via ntfy.")
     else:
-        print("Skipping ntfy test: NTFY_CONFIRM_TOPIC or NTFY_RESPONSE_TOPIC not set.")
-
+        print("Skipping ntfy test: NTFY_SERVER, NTFY_CONFIRM_TOPIC, or NTFY_RESPONSE_TOPIC not set. Set these environment variables to test.")
