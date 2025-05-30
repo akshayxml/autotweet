@@ -86,8 +86,8 @@ def generate_technical_tweet(topic: str) -> str:
         raise RuntimeError("Model and tokenizer not loaded. Call load_llama3_model() first.")
 
     messages = [
-        {"role": "system", "content": "You are a concise, expert technical writer for Twitter. Your goal is to provide clear, actionable technical details, insights or tips. Keep tweets under 280 characters."},
-        {"role": "user", "content": f"Suggest a crucial technical detail about {topic} for developers to know. Dont add 'Did you know' in the output"},
+        {"role": "system", "content": "You are a concise, expert technical writer for Twitter. Your goal is to provide clear, actionable technical details, insights or tips. Keep tweets under 280 characters. Avoid repeating previous suggestions."},
+        {"role": "user", "content": f"Suggest a crucial technical detail about {topic} for developers to know. Dont add 'Did you know' in the output. Ensure the output is unique and not similar to any previously provided examples."},
     ]
 
     print(f"\n--- Generating for topic: {topic} ---", flush=True)
