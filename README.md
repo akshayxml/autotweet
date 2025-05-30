@@ -52,7 +52,8 @@ AutoTweet is a Python application that leverages the Llama 3 language model to g
     *   Alternatively, you can set the `HF_TOKEN` environment variable with your Hugging Face access token.
 
 4.  **Environment Variables:**
-    Create a `.env` file in the project root or set the following environment variables:
+    Create a `.env` file in the project root by copying the provided `.env.example` file (`cp .env.example .env`) and then fill in your actual values. Alternatively, you can set these environment variables directly in your system.
+
 
     *   **X API Credentials (Required):**
         ```
