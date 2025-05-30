@@ -129,6 +129,8 @@ def main():
     if not all([CONSUMER_KEY, CONSUMER_SECRET, ACCESS_TOKEN, ACCESS_TOKEN_SECRET]):
         raise ValueError("Please set your X API credentials as environment variables.")
 
+    force_post = len(sys.argv) > 1 and sys.argv[1] == "--force-post"
+    
     load_llama3_model()
 
     x_client = tweepy.Client(
@@ -152,11 +154,15 @@ def main():
             selected_topic = random.choice(topics)
             tweet = generate_technical_tweet(selected_topic)
             print(f"\n--- Proposed Tweet for Twitter ---\n'{tweet}'")
+            
+            if force_post:
+                print("Command line argument '--force-post' detected. Skipping confirmation and posting directly.")
+                confirmed_to_post_decision = "approve"
+            else:
+                confirmed_to_post_decision = request_confirmation(tweet)
 
-            confirmed_to_post = request_confirmation(tweet)
-
-            if confirmed_to_post == "approve":
-                print("Confirmation received. Posting tweet...")
+            if confirmed_to_post_decision == "approve":
+                print("Posting tweet...")
                 response = x_client.create_tweet(text=tweet)
                 print("Tweet posted successfully!")
                 print(f"Tweet ID: {response.data['id']}")
@@ -164,7 +170,7 @@ def main():
             elif confirmed_to_post == "reject":
                 print("Tweet posting rejected by user.")
             elif confirmed_to_post == "regenerate":
-                print("Re-generating new tweet as requested by user.")
+                print("Re-generating new tweet as requested by the user.")
                 continue
 
             print(f"Waiting for {TWEET_TIMEGAP_SECS} seconds before next cycle...")
