@@ -2,7 +2,7 @@ from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
 import torch
 import random
 import os
-import sys 
+import sys
 import time
 import tweepy
 from notification_handler import request_confirmation
@@ -12,7 +12,7 @@ load_dotenv()
 
 LLAMA3_MODEL_NAME = "meta-llama/Meta-Llama-3-8B-Instruct"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-TWEET_TIMEGAP_SECS = 60 * 60 * 12 # 12 hours
+TWEET_TIMEGAP_SECS = 60 * 60 * 11 # 11 hours
 tokenizer = None
 generator = None
 CONSUMER_KEY = os.getenv("X_CONSUMER_KEY")
