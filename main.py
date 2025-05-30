@@ -28,22 +28,29 @@ def load_llama3_model():
     """
     global tokenizer, generator
 
-    print(f"Device set to use {DEVICE}")
-    print(f"Loading {LLAMA3_MODEL_NAME} model...")
+    print(f"Device set to use {DEVICE}", flush=True)
+    print(f"Loading {LLAMA3_MODEL_NAME} model...", flush=True)
 
     try:
         if os.getenv("HF_TOKEN") is None and not os.path.exists(os.path.expanduser("~/.cache/huggingface/token")):
-            print("Warning: Hugging Face token not found. Please run 'huggingface-cli login' or set HF_TOKEN environment variable.")
-            print(f"Attempting to load model, but might fail with 403 error without token/license acceptance for {LLAMA3_MODEL_NAME}.")
+            print("Warning: Hugging Face token not found. Please run 'huggingface-cli login' or set HF_TOKEN environment variable.", flush=True)
+            print(f"Attempting to load model, but might fail with 403 error without token/license acceptance for {LLAMA3_MODEL_NAME}.", flush=True)
 
+        print("Loading tokenizer...", flush=True)
         tokenizer = AutoTokenizer.from_pretrained(LLAMA3_MODEL_NAME)
+        print("Tokenizer loaded.", flush=True)
+
+        print("Loading model...", flush=True)
         model = AutoModelForCausalLM.from_pretrained(
             LLAMA3_MODEL_NAME,
             torch_dtype=torch.bfloat16 if DEVICE == "cuda" else torch.float32,
             device_map="auto" if DEVICE == "cuda" else None
         )
+        print("Model loaded. Moving to device...", flush=True)
         model.to(DEVICE) 
+        print(f"Model moved to {DEVICE}.", flush=True)
 
+        print("Creating text generation pipeline...", flush=True)
         generator = pipeline(
             'text-generation',
             model=model,
@@ -58,10 +65,11 @@ def load_llama3_model():
             eos_token_id=tokenizer.eos_token_id,
             pad_token_id=tokenizer.eos_token_id,
         )
-        print("Model loaded successfully!")
+        print("Text generation pipeline created.", flush=True)
+        print("Model and pipeline loaded successfully!", flush=True)
     except Exception as e:
-        print(f"Error loading model: {e}")
-        print("Please ensure you have accepted the Llama 3 license on Hugging Face and logged in via 'huggingface-cli login' or set HF_TOKEN.")
+        print(f"Error loading model: {e}", flush=True)
+        print("Please ensure you have accepted the Llama 3 license on Hugging Face and logged in via 'huggingface-cli login' or set HF_TOKEN.", flush=True)
         sys.exit(1) 
 
 def generate_technical_tweet(topic: str) -> str:
@@ -82,14 +90,14 @@ def generate_technical_tweet(topic: str) -> str:
         {"role": "user", "content": f"Suggest a crucial technical detail about {topic} for developers to know. Dont add 'Did you know' in the output"},
     ]
 
-    prompt_llama3 = tokenizer.apply_chat_template(
+    print(f"\n--- Generating for topic: {topic} ---", flush=True)
+    print(f"--- Applying chat template... ---", flush=True)
+    prompt_llama3 = tokenizer.apply_chat_template( # This was missing a print before it
         messages,
         tokenize=False,
         add_generation_prompt=True
     )
-
-    print(f"\n--- Generating for topic: {topic} ---")
-    print(f"--- Generated Prompt for Llama 3 ---\n{prompt_llama3}")
+    print(f"--- Generated Prompt for Llama 3 ---\n{prompt_llama3}", flush=True)
 
     generated_output = generator(prompt_llama3)
     raw_generated_text = generated_output[0]['generated_text']
@@ -122,7 +130,7 @@ def post_process_llama3_output(raw_text: str) -> str:
         else:
             return raw_text.replace("<|eot_id|>", "").strip() # Still remove eot_id if present
     except Exception as e:
-        print(f"Error during post-processing: {e}. Returning raw text as fallback.")
+        print(f"Error during post-processing: {e}. Returning raw text as fallback.", flush=True)
         return raw_text.replace("<|eot_id|>", "").strip()
 
 def main():
@@ -130,10 +138,12 @@ def main():
     Main function to run the tweet generation process.
     """
     if not all([CONSUMER_KEY, CONSUMER_SECRET, ACCESS_TOKEN, ACCESS_TOKEN_SECRET]):
+        print("Error: X API credentials not set. Please set X_CONSUMER_KEY, X_CONSUMER_SECRET, X_ACCESS_TOKEN, X_ACCESS_TOKEN_SECRET environment variables.", flush=True)
         raise ValueError("Please set your X API credentials as environment variables.")
 
     force_post = len(sys.argv) > 1 and sys.argv[1] == "--force-post"
 
+    print("Starting main function. Calling load_llama3_model...", flush=True)
     load_llama3_model()
 
     x_client = tweepy.Client(
@@ -150,38 +160,41 @@ def main():
         "operating system", "computer networking", "databases", "kafka", "javascript"
     ]
 
-    print(f"Starting scheduled task to run every {TWEET_TIMEGAP_SECS} seconds. Press Ctrl+C to stop.")
+    print(f"Initialization complete. Starting tweet generation loop every {TWEET_TIMEGAP_SECS} seconds.", flush=True)
 
     try:
         while True:
+            print("--- New tweet cycle started ---", flush=True)
             selected_topic = random.choice(topics)
             tweet = generate_technical_tweet(selected_topic)
-            print(f"\n--- Proposed Tweet for Twitter ---\n'{tweet}'")
+            print(f"\n--- Proposed Tweet for Twitter ---\n'{tweet}'", flush=True)
             
             if force_post:
-                print("Command line argument '--force-post' detected. Skipping confirmation and posting directly.")
+                print("Command line argument '--force-post' detected. Skipping confirmation and posting directly.", flush=True)
                 confirmed_to_post_decision = "approve"
             else:
+                print("Requesting confirmation for tweet...", flush=True)
                 confirmed_to_post_decision = request_confirmation(tweet)
+                print(f"Confirmation decision: {confirmed_to_post_decision}", flush=True)
 
             if confirmed_to_post_decision == "approve":
-                print("Posting tweet...")
+                print("Posting tweet...", flush=True)
                 response = x_client.create_tweet(text=tweet)
-                print("Tweet posted successfully!")
-                print(f"Tweet ID: {response.data['id']}")
-                print(f"Tweet Text: {response.data['text']}")
+                print("Tweet posted successfully!", flush=True)
+                print(f"Tweet ID: {response.data['id']}", flush=True)
+                print(f"Tweet Text: {response.data['text']}", flush=True)
             elif confirmed_to_post_decision == "reject":
-                print("Tweet posting rejected by user.")
+                print("Tweet posting rejected by user.", flush=True)
             elif confirmed_to_post_decision == "regenerate":
-                print("Re-generating new tweet as requested by the user.")
+                print("Re-generating new tweet as requested by the user.", flush=True)
                 continue
 
-            print(f"Waiting for {TWEET_TIMEGAP_SECS} seconds before next cycle...")
+            print(f"Waiting for {TWEET_TIMEGAP_SECS} seconds before next cycle...", flush=True)
             time.sleep(TWEET_TIMEGAP_SECS)
     except KeyboardInterrupt:
-        print("\nTask stopped by user.")
+        print("\nTask stopped by user.", flush=True)
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        print(f"An unexpected error occurred in main loop: {e}", flush=True)
 
 if __name__ == "__main__":
     main()
