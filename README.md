@@ -2,6 +2,17 @@
 
 AutoTweet is a Python application that leverages the Llama 3 language model to generate technical tweets on various topics. It integrates with `ntfy.sh` for a push notification-based confirmation workflow before posting to X (formerly Twitter). 
 
+## Table of Contents
+
+- [Features](#features)
+- [How it Works](#how-it-works)
+- [Setup](#setup)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [Dependencies](#dependencies)
+- [Running as a Systemd Service (Linux)](#running-as-a-systemd-service-linux)
+- [Contributing](#contributing)
+
 ## Features
 
 *   **Automated Tweet Generation:** Uses the `meta-llama/Meta-Llama-3-8B-Instruct` model to create concise technical tweets.
