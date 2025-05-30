@@ -36,8 +36,14 @@ AutoTweet is a Python application that leverages the Llama 3 language model to g
 
 2.  **Install Dependencies:**
     Make sure you have Python 3.x installed.
+    It's highly recommended to create and activate a virtual environment first:
     ```bash
-    pip install transformers torch tweepy requests
+    python3 -m venv venv
+    source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+    ```
+    Then, install the required packages:
+    ```bash
+    pip install -r requirements.txt
     # For CUDA support with PyTorch, ensure your PyTorch installation matches your CUDA version.
     # See: https://pytorch.org/get-started/locally/
     ```
@@ -113,10 +119,13 @@ You can modify the following in `main.py`:
 
 ## Dependencies
 
-*   `transformers`
-*   `torch`
-*   `tweepy`
-*   `requests`
+All Python dependencies are listed in `requirements.txt`. The main dependencies include:
+*   `transformers`: For interacting with Hugging Face models.
+*   `torch`: The deep learning framework used by the model.
+*   `tweepy`: For interacting with the X API.
+*   `requests`: For making HTTP requests (e.g., to ntfy.sh).
+*   `python-dotenv`: For managing environment variables from a `.env` file.
+
 
 ## Contributing
 
