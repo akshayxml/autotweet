@@ -126,6 +126,57 @@ All Python dependencies are listed in `requirements.txt`. The main dependencies 
 *   `requests`: For making HTTP requests (e.g., to ntfy.sh).
 *   `python-dotenv`: For managing environment variables from a `.env` file.
 
+## Running as a Systemd Service (Linux)
+
+To run AutoTweet automatically on system boot, you can set it up as a systemd service.
+
+1.  **Create the service file:**
+
+    Create a file named `autotweet.service` in `/etc/systemd/system/` with the following content.
+    Make sure to adjust `User`, `WorkingDirectory`, and `ExecStart` paths to match your setup.
+
+    ```ini
+    [Unit]
+    Description=AutoTweet Service
+    After=network.target
+
+    [Service]
+    User=your_username
+    WorkingDirectory=/path/to/your/autotweet_project
+    ExecStart=/path/to/your/autotweet_project/venv/bin/python3 /path/to/your/autotweet_project/main.py
+    Restart=always
+    RestartSec=10
+
+    [Install]
+    WantedBy=multi-user.target
+    ```
+
+    **Note:**
+    *   Replace `your_username` with the appropriate user for running the script.
+    *   Replace `/path/to/your/autotweet_project` with the absolute path to your project directory.
+    *   Ensure the Python interpreter path in `ExecStart` is correct for your virtual environment.
+
+2.  **Reload systemd, enable, and start the service:**
+
+    ```bash
+    sudo systemctl daemon-reload
+    sudo systemctl enable autotweet.service
+    sudo systemctl start autotweet.service
+    ```
+
+3.  **Check the status:**
+
+    You can check the status of the service using:
+
+    ```bash
+    sudo systemctl status autotweet.service
+    ```
+
+    And view logs with:
+
+    ```bash
+    journalctl -u autotweet.service -f
+    ```
 
 ## Contributing
 
