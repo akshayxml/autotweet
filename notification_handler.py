@@ -10,11 +10,12 @@ load_dotenv()
 NTFY_SERVER = os.getenv("NTFY_SERVER", "https://ntfy.sh") # Added default
 NTFY_CONFIRM_TOPIC = os.getenv("NTFY_CONFIRM_TOPIC")
 NTFY_RESPONSE_TOPIC = os.getenv("NTFY_RESPONSE_TOPIC")
+POLL_READ_TIMEOUT_SECS = 300
 
-def request_confirmation(tweet_text: str) -> str:
+def request_confirmation(tweet_text: str, timeout: int = None) -> str:
     """
     Requests confirmation via ntfy push notification to a phone.
-    Returns the decision ('approve', 'reject', 'regenerate') or raises an error.
+    Returns the decision ('approve', 'reject', 'regenerate') or raises TimeoutError.
     """
     if not all([NTFY_SERVER, NTFY_CONFIRM_TOPIC, NTFY_RESPONSE_TOPIC]):
         raise ValueError("NTFY_SERVER, NTFY_CONFIRM_TOPIC, and NTFY_RESPONSE_TOPIC environment variables must be set for ntfy confirmation.")
@@ -56,28 +57,35 @@ def request_confirmation(tweet_text: str) -> str:
         raise ConnectionError(f"Error sending ntfy notification to {base_ntfy_url}: {e}")
 
     poll_url = f"{base_ntfy_url}/{NTFY_RESPONSE_TOPIC}/json"
-    try:
-        resp = requests.get(poll_url, stream=True)
-        approved = False
-        for line in resp.iter_lines():
-            if line:
-                event = json.loads(line.decode('utf-8'))
-                if event.get("event") == "message":
-                    message_payload = json.loads(event.get("message", "{}"))
-                    if message_payload.get("id") == confirmation_id:
-                        decision = message_payload.get("decision")
-                        print(f"Received decision via ntfy: '{decision}' for ID {confirmation_id[:8]}")
-                        return decision
-    except requests.exceptions.ConnectionError as e:
-        print(f"Polling ntfy failed due to ConnectionError for URL {poll_url}: {e}. Retrying...")
-        time.sleep(5)
-    except requests.exceptions.Timeout as e:
-        print(f"Polling ntfy timed out for URL {poll_url}: {e}. Retrying...")
-        time.sleep(5)
-    except requests.exceptions.RequestException as e:
-        raise ConnectionError(f"Error polling ntfy response from {poll_url}: {e}")
-
-    raise TimeoutError(f"No response received on ntfy topic {poll_url} for ID {confirmation_id[:8]} within the expected timeframe.")
+    start_time = time.time()
+    
+    while True:
+        if timeout is not None and time.time() - start_time > timeout:
+            raise TimeoutError(f"No response received on ntfy topic {poll_url} for ID {confirmation_id[:8]} within the expected timeframe.")
+            
+        try:
+            # Poll with a short read timeout to allow checking the total elapsed time periodically.
+            resp = requests.get(poll_url, stream=True, timeout=POLL_READ_TIMEOUT_SECS)
+            for line in resp.iter_lines():
+                if timeout is not None and time.time() - start_time > timeout:
+                    raise TimeoutError(f"No response received on ntfy topic {poll_url} for ID {confirmation_id[:8]} within the expected timeframe.")
+                    
+                if line:
+                    event = json.loads(line.decode('utf-8'))
+                    if event.get("event") == "message":
+                        message_payload = json.loads(event.get("message", "{}"))
+                        if message_payload.get("id") == confirmation_id:
+                            decision = message_payload.get("decision")
+                            print(f"Received decision via ntfy: '{decision}' for ID {confirmation_id[:8]}")
+                            return decision
+        except requests.exceptions.ConnectionError as e:
+            print(f"Polling ntfy failed due to ConnectionError for URL {poll_url}: {e}. Retrying...")
+            time.sleep(5)
+        except requests.exceptions.Timeout as e:
+            # Ignore short read timeouts and continue the while loop to check total elapsed time.
+            continue
+        except requests.exceptions.RequestException as e:
+            raise ConnectionError(f"Error polling ntfy response from {poll_url}: {e}")
 
 if __name__ == '__main__':
     # Example usage (optional, for testing notification_handler.py directly)
