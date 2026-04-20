@@ -1,0 +1,12 @@
+[Unit]
+Description=AutoTweet Script
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/usr/local/google/home/aksm/personal/autotweet
+ExecStart=/usr/local/google/home/aksm/personal/autotweet/venv/bin/python /usr/local/google/home/aksm/personal/autotweet/main.py
+EnvironmentFile=/usr/local/google/home/aksm/personal/autotweet/.env
+
+[Install]
+WantedBy=multi-user.target

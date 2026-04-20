@@ -41,12 +41,6 @@ def request_confirmation(tweet_text: str, timeout: int = None) -> str:
                 "url": f"{base_ntfy_url}/{NTFY_RESPONSE_TOPIC}", "method": "POST",
                 "body": json.dumps({"id": confirmation_id, "decision": "reject"}),
                 "headers": {"Content-Type": "application/json", "X-Title": f"Rejected tweet {confirmation_id[:8]}"}, "clear": True,
-            },
-            {
-                "action": "http", "label": "Re-generate 🔁",
-                "url": f"{base_ntfy_url}/{NTFY_RESPONSE_TOPIC}", "method": "POST",
-                "body": json.dumps({"id": confirmation_id, "decision": "regenerate"}),
-                "headers": {"Content-Type": "application/json", "X-Title": f"Regenerate tweet {confirmation_id[:8]}"}, "clear": True,
             }
         ]
     }
