@@ -187,7 +187,7 @@ def main():
             print("Command line argument '--force-post' detected. Skipping confirmation and posting directly.", flush=True)
             confirmed_to_post_decision = "approve"
         else:
-            confirmed_to_post_decision = request_confirmation(tweet, timeout=TWEET_TIMEGAP_SECS)
+            confirmed_to_post_decision = request_confirmation(tweet, timeout=TWEET_TIMEOUT_SECS)
             print(f"Confirmation decision: {confirmed_to_post_decision}", flush=True)
 
         if confirmed_to_post_decision == "approve":
