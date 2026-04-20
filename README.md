@@ -19,11 +19,10 @@ AutoTweet is a Python application that leverages the Llama 3 language model to g
 *   **X Integration:** Posts approved tweets directly to your X account.
 *   **Notification-based Confirmation:**
     *   Sends a push notification via a self-hosted or public `ntfy.sh` server to your device.
-    *   Allows you to "Approve ✅", "Discard ❌", or "Re-generate 🔁" the tweet directly from the notification.
-* **Direct Posting Option:** A command-line argument (`--force-post`) allows bypassing the confirmation step for direct posting
+    *   Allows you to "Approve ✅" or "Discard ❌" the tweet directly from the notification.
+*   **Direct Posting Option:** A command-line argument (`--force-post`) allows bypassing the confirmation step for direct posting
 *   **Configurable Topics:** Easily customize the list of topics for tweet generation.
-*   **Adjustable Tweet Frequency:** Control how often the script attempts to generate and post a tweet.
-*   **CUDA Support:** Utilizes GPU for faster model inference if a CUDA-enabled GPU is available.
+*   **Quantization Support:** Supports 4-bit quantization using `bitsandbytes` to reduce memory usage on both CPU and GPU.
 
 ## How it Works
 
@@ -34,8 +33,7 @@ AutoTweet is a Python application that leverages the Llama 3 language model to g
 5.  **Action Based on Confirmation:**
     *   **Approve:** The tweet is posted to X.
     *   **Discard:** The tweet is not posted.
-    *   **Re-generate:** The script attempts to generate a new tweet for the same topic.
-6.  **Scheduling:** After an action (or inaction), the script waits for a configurable interval (`TWEET_TIMEGAP_SECS`) before starting the cycle again.
+6.  **Termination:** After sending the notification and receiving a response (or timing out), the script exits. It does not loop internally.
 
 ## Setup
 
@@ -137,56 +135,60 @@ All Python dependencies are listed in `requirements.txt`. The main dependencies 
 *   `requests`: For making HTTP requests (e.g., to ntfy.sh).
 *   `python-dotenv`: For managing environment variables from a `.env` file.
 
-## Running as a Systemd Service (Linux)
+## Running with Systemd (Linux)
 
-To run AutoTweet automatically on system boot, you can set it up as a systemd service.
+To run AutoTweet automatically every day, you can set it up with a systemd service and timer.
 
-1.  **Create the service file:**
+1.  **Create the Service and Timer files:**
 
-    Create a file named `autotweet.service` in `/etc/systemd/system/` with the following content.
+    Create `autotweet.service` and `autotweet.timer` files (templates are provided in the repository) and copy them to `/etc/systemd/system/`.
+
+    **autotweet.service**
     Make sure to adjust `User`, `WorkingDirectory`, and `ExecStart` paths to match your setup.
-
     ```ini
     [Unit]
-    Description=AutoTweet Service
+    Description=Run AutoTweet once
     After=network.target
 
     [Service]
+    Type=oneshot
     User=your_username
     WorkingDirectory=/path/to/your/autotweet_project
     ExecStart=/path/to/your/autotweet_project/venv/bin/python3 /path/to/your/autotweet_project/main.py
-    Restart=always
-    RestartSec=10
-
-    [Install]
-    WantedBy=multi-user.target
     ```
 
-    **Note:**
-    *   Replace `your_username` with the appropriate user for running the script.
-    *   Replace `/path/to/your/autotweet_project` with the absolute path to your project directory.
-    *   Ensure the Python interpreter path in `ExecStart` is correct for your virtual environment.
+    **autotweet.timer**
+    This configures the script to run daily at 10:00 AM.
+    ```ini
+    [Unit]
+    Description=Run AutoTweet daily
 
-2.  **Reload systemd, enable, and start the service:**
+    [Timer]
+    OnCalendar=*-*-* 10:00:00
+    Persistent=true
+
+    [Install]
+    WantedBy=timers.target
+    ```
+
+2.  **Enable and start the timer:**
 
     ```bash
     sudo systemctl daemon-reload
-    sudo systemctl enable autotweet.service
-    sudo systemctl start autotweet.service
+    sudo systemctl enable --now autotweet.timer
     ```
 
 3.  **Check the status:**
 
-    You can check the status of the service using:
+    You can check the status of the timer using:
 
     ```bash
-    sudo systemctl status autotweet.service
+    sudo systemctl status autotweet.timer
     ```
 
-    And view logs with:
-
+    And check when it was last run and when it will run next:
     ```bash
-    journalctl -u autotweet.service -f
+    systemctl list-timers --all | grep autotweet
     ```
 
 ## Contributing

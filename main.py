@@ -62,7 +62,6 @@ def load_llama3_model():
             'text-generation',
             model=model,
             tokenizer=tokenizer,
-            device=0 if DEVICE == "cuda" else -1, 
             max_new_tokens=200, 
             do_sample=True,
             temperature=0.7,
@@ -174,7 +173,7 @@ def main():
         selected_topic = random.choice(topics)
         tweet = generate_technical_tweet(selected_topic)
         print(f"\n--- Proposed Tweet for Twitter ---\n'{tweet}'", flush=True)
-        
+
         # Unload model to free RAM before waiting for confirmation
         global generator, tokenizer
         print("Unloading model to free RAM...", flush=True)
