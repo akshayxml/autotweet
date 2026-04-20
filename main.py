@@ -13,7 +13,6 @@ load_dotenv()
 
 LLAMA3_MODEL_NAME = "meta-llama/Meta-Llama-3-8B-Instruct"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-TWEET_TIMEGAP_SECS = 60 * 60 * 11 # 11 hours
 tokenizer = None
 generator = None
 CONSUMER_KEY = os.getenv("X_CONSUMER_KEY")
@@ -166,14 +165,14 @@ def main():
         "operating system", "computer networking", "databases", "kafka", "javascript"
     ]
 
-    print(f"Initialization complete. Starting tweet generation loop every {TWEET_TIMEGAP_SECS} seconds.", flush=True)
+    print("Initialization complete. Starting tweet generation.", flush=True)
 
     try:
         print("--- New tweet cycle started ---", flush=True)
         selected_topic = random.choice(topics)
         tweet = generate_technical_tweet(selected_topic)
         print(f"\n--- Proposed Tweet for Twitter ---\n'{tweet}'", flush=True)
-
+        
         # Unload model to free RAM before waiting for confirmation
         global generator, tokenizer
         print("Unloading model to free RAM...", flush=True)
