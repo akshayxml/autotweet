@@ -4,6 +4,7 @@ import random
 import os
 import sys
 import time
+import gc
 import tweepy
 from notification_handler import request_confirmation
 from dotenv import load_dotenv
@@ -163,38 +164,36 @@ def main():
     print(f"Initialization complete. Starting tweet generation loop every {TWEET_TIMEGAP_SECS} seconds.", flush=True)
 
     try:
-        while True:
-            print("--- New tweet cycle started ---", flush=True)
-            selected_topic = random.choice(topics)
-            tweet = generate_technical_tweet(selected_topic)
-            print(f"\n--- Proposed Tweet for Twitter ---\n'{tweet}'", flush=True)
-            
-            if force_post:
-                print("Command line argument '--force-post' detected. Skipping confirmation and posting directly.", flush=True)
-                confirmed_to_post_decision = "approve"
-            else:
-                while True:
-                    try:
-                        confirmed_to_post_decision = request_confirmation(tweet, timeout=TWEET_TIMEGAP_SECS)
-                        break
-                    except TimeoutError:
-                        print(f"Timeout of {TWEET_TIMEGAP_SECS}s reached without response. Retrying confirmation request...", flush=True)
-                print(f"Confirmation decision: {confirmed_to_post_decision}", flush=True)
+        print("--- New tweet cycle started ---", flush=True)
+        selected_topic = random.choice(topics)
+        tweet = generate_technical_tweet(selected_topic)
+        print(f"\n--- Proposed Tweet for Twitter ---\n'{tweet}'", flush=True)
+        
+        # Unload model to free RAM before waiting for confirmation
+        global generator, tokenizer
+        print("Unloading model to free RAM...", flush=True)
+        generator = None
+        tokenizer = None
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        print("Model unloaded.", flush=True)
 
-            if confirmed_to_post_decision == "approve":
-                print("Posting tweet...", flush=True)
-                response = x_client.create_tweet(text=tweet)
-                print("Tweet posted successfully!", flush=True)
-                print(f"Tweet ID: {response.data['id']}", flush=True)
-                print(f"Tweet Text: {response.data['text']}", flush=True)
-            elif confirmed_to_post_decision == "reject":
-                print("Tweet posting rejected by user.", flush=True)
-            elif confirmed_to_post_decision == "regenerate":
-                print("Re-generating new tweet as requested by the user.", flush=True)
-                continue
+        if force_post:
+            print("Command line argument '--force-post' detected. Skipping confirmation and posting directly.", flush=True)
+            confirmed_to_post_decision = "approve"
+        else:
+            confirmed_to_post_decision = request_confirmation(tweet, timeout=TWEET_TIMEGAP_SECS)
+            print(f"Confirmation decision: {confirmed_to_post_decision}", flush=True)
 
-            print(f"Waiting for {TWEET_TIMEGAP_SECS} seconds before next cycle...", flush=True)
-            time.sleep(TWEET_TIMEGAP_SECS)
+        if confirmed_to_post_decision == "approve":
+            print("Posting tweet...", flush=True)
+            response = x_client.create_tweet(text=tweet)
+            print("Tweet posted successfully!", flush=True)
+            print(f"Tweet ID: {response.data['id']}", flush=True)
+            print(f"Tweet Text: {response.data['text']}", flush=True)
+        elif confirmed_to_post_decision == "reject":
+            print("Tweet posting rejected by user.", flush=True)
     except KeyboardInterrupt:
         print("\nTask stopped by user.", flush=True)
     except Exception as e:
