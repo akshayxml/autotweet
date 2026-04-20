@@ -113,10 +113,6 @@ AutoTweet is a Python application that leverages the Llama 3 language model to g
 You can modify the following in `main.py`:
 
 *   `LLAMA3_MODEL_NAME`: Change the Llama 3 model variant if needed (ensure compatibility).
-*   `TWEET_TIMEGAP_SECS`: Adjust the time interval (in seconds) between tweet generation attempts. Default is 12 hours.
-    ```python
-    TWEET_TIMEGAP_SECS = 60 * 60 * 12 # 12 hours
-    ```
 *   `topics`: Add or remove topics for tweet generation.
     ```python
     topics = [
