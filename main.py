@@ -1,4 +1,4 @@
-from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
+from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 import torch
 import random
 import os
@@ -41,10 +41,16 @@ def load_llama3_model():
         tokenizer = AutoTokenizer.from_pretrained(LLAMA3_MODEL_NAME)
         print("Tokenizer loaded.", flush=True)
 
-        print("Loading model...", flush=True)
+        print("Loading model with 4-bit quantization (bitsandbytes)...", flush=True)
+        quantization_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.bfloat16 if DEVICE == "cuda" else torch.float32,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4"
+        )
         model = AutoModelForCausalLM.from_pretrained(
             LLAMA3_MODEL_NAME,
-            torch_dtype=torch.bfloat16 if DEVICE == "cuda" else torch.float32,
+            quantization_config=quantization_config,
             device_map="auto" if DEVICE == "cuda" else None
         )
         print("Model loaded. Moving to device...", flush=True)
