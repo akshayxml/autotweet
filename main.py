@@ -134,12 +134,33 @@ def post_process_llama3_output(raw_text: str) -> str:
         if assistant_start_index != -1:
             clean_text = raw_text[assistant_start_index + len("<|start_header_id|>assistant<|end_header_id|>\n\n"):].strip()
             clean_text = clean_text.replace("<|eot_id|>", "").strip()
-            return clean_text
+            return strip_wrapping_quotes(clean_text)
         else:
-            return raw_text.replace("<|eot_id|>", "").strip() # Still remove eot_id if present
+            return strip_wrapping_quotes(raw_text.replace("<|eot_id|>", "").strip()) # Still remove eot_id if present
     except Exception as e:
         print(f"Error during post-processing: {e}. Returning raw text as fallback.", flush=True)
         return raw_text.replace("<|eot_id|>", "").strip()
+
+QUOTE_PAIRS = [('"', '"'), ("'", "'"), ("\u201c", "\u201d"), ("\u2018", "\u2019"), ("`", "`")]
+
+def strip_wrapping_quotes(text: str) -> str:
+    """
+    Removes matching quote pairs wrapping the entire text (e.g. "tweet" -> tweet).
+    Quotes inside the text are left untouched.
+    """
+    text = text.strip()
+    changed = True
+    while changed and len(text) >= 2:
+        changed = False
+        for open_q, close_q in QUOTE_PAIRS:
+            if text.startswith(open_q) and text.endswith(close_q):
+                inner = text[len(open_q):-len(close_q)]
+                if open_q in inner or close_q in inner:
+                    continue # e.g. '"a" vs "b"' - quotes aren't wrapping the whole text
+                text = inner.strip()
+                changed = True
+                break
+    return text
 
 def create_x_client():
     """
