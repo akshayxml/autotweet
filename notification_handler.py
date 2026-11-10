@@ -3,6 +3,7 @@ import time
 import requests
 import json
 import uuid
+from urllib.parse import quote
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -11,10 +12,54 @@ NTFY_SERVER = os.getenv("NTFY_SERVER", "https://ntfy.sh") # Added default
 NTFY_CONFIRM_TOPIC = os.getenv("NTFY_CONFIRM_TOPIC")
 NTFY_RESPONSE_TOPIC = os.getenv("NTFY_RESPONSE_TOPIC")
 POLL_READ_TIMEOUT_SECS = 300
+X_INTENT_BASE_URL = "https://x.com/intent/tweet"
+
+def build_tweet_intent_url(tweet_text: str) -> str:
+    """
+    Builds an X (Twitter) Web Intent URL with the tweet text prefilled.
+    Opening it lands on the compose box; the user presses "Post" manually.
+    """
+    return f"{X_INTENT_BASE_URL}?text={quote(tweet_text, safe='')}"
+
+def send_tweet_for_review(tweet_text: str) -> str:
+    """
+    [intent mode] Sends the proposed tweet to ntfy. The "Approve" action opens the
+    X Web Intent URL in the browser / X app with the text prefilled. Dismissing the
+    notification discards the tweet. No X API is used.
+
+    Returns the generated intent URL.
+    """
+    if not all([NTFY_SERVER, NTFY_CONFIRM_TOPIC]):
+        raise ValueError("NTFY_SERVER and NTFY_CONFIRM_TOPIC environment variables must be set for ntfy notifications.")
+
+    base_ntfy_url = NTFY_SERVER.rstrip('/')
+    intent_url = build_tweet_intent_url(tweet_text)
+
+    message_payload = {
+        "topic": NTFY_CONFIRM_TOPIC,
+        "message": f"Approve tweet?\n\n---\n{tweet_text}\n---\n\nTap 'Approve' to open X with this text prefilled, or dismiss to discard.",
+        "title": "AutoTweet: Review Tweet",
+        "priority": 4,
+        "tags": ["bell", "bird"],
+        "actions": [
+            {
+                "action": "view", "label": "Approve ✅",
+                "url": intent_url, "clear": True,
+            },
+        ],
+    }
+    try:
+        resp = requests.post(base_ntfy_url, json=message_payload, timeout=10)
+        resp.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        raise ConnectionError(f"Error sending ntfy notification to {base_ntfy_url}: {e}")
+
+    print(f"Tweet sent for review to ntfy topic '{base_ntfy_url}/{NTFY_CONFIRM_TOPIC}'.", flush=True)
+    return intent_url
 
 def request_confirmation(tweet_text: str, timeout: int = None) -> str:
     """
-    Requests confirmation via ntfy push notification to a phone.
+    [api mode] Requests confirmation via ntfy push notification to a phone.
     Returns the decision ('approve', 'reject', 'regenerate') or raises TimeoutError.
     """
     if not all([NTFY_SERVER, NTFY_CONFIRM_TOPIC, NTFY_RESPONSE_TOPIC]):
@@ -83,15 +128,9 @@ def request_confirmation(tweet_text: str, timeout: int = None) -> str:
 
 if __name__ == '__main__':
     # Example usage (optional, for testing notification_handler.py directly)
-    if NTFY_CONFIRM_TOPIC and NTFY_RESPONSE_TOPIC:
-        print("Testing ntfy confirmation...")
-        test_tweet = "This is a test tweet for ntfy confirmation."
-        user_response = request_confirmation(test_tweet)
-        if user_response == "approve":
-            print("Test tweet APPROVED via ntfy.")
-        elif user_response == "reject":
-            print("Test tweet REJECTED via ntfy.")
-        elif user_response == "regenerate":
-            print("REGENERATE tweet request via ntfy.")
+    if NTFY_CONFIRM_TOPIC:
+        print("Testing ntfy review notification (intent mode)...")
+        url = send_tweet_for_review("This is a test tweet for ntfy review. #autotweet")
+        print(f"Intent URL: {url}")
     else:
-        print("Skipping ntfy test: NTFY_SERVER, NTFY_CONFIRM_TOPIC, or NTFY_RESPONSE_TOPIC not set. Set these environment variables to test.")
+        print("Skipping ntfy test: NTFY_CONFIRM_TOPIC not set. Set this environment variable to test.")

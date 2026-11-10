@@ -1,6 +1,6 @@
 # AutoTweet
 
-AutoTweet is a Python application that leverages the Llama 3 language model to generate technical tweets on various topics. It integrates with `ntfy.sh` for a push notification-based confirmation workflow before posting to X (formerly Twitter). 
+AutoTweet is a Python application that leverages the Llama 3 language model to generate technical tweets on various topics. It integrates with `ntfy.sh` for a push notification-based review workflow: approving a tweet opens X (formerly Twitter) with the text prefilled, and you press "Post" yourself. By default no X API is used, so the setup is 100% free. If you have paid X API access, you can optionally switch to automatic posting (`POST_MODE=api`). 
 
 ## Table of Contents
 
@@ -16,11 +16,14 @@ AutoTweet is a Python application that leverages the Llama 3 language model to g
 ## Features
 
 *   **Automated Tweet Generation:** Uses the `meta-llama/Meta-Llama-3-8B-Instruct` model to create concise technical tweets.
-*   **X Integration:** Posts approved tweets directly to your X account.
-*   **Notification-based Confirmation:**
+*   **Two Posting Modes (`POST_MODE`):**
+    *   `intent` (default, free): Uses an [X Web Intent URL](https://developer.x.com/en/docs/twitter-for-websites/tweet-button/guides/web-intent); you post manually.
+    *   `api` (optional, paid X API): Approved tweets are posted automatically via the X API.
+*   **Notification-based Review:**
     *   Sends a push notification via a self-hosted or public `ntfy.sh` server to your device.
-    *   Allows you to "Approve ✅" or "Discard ❌" the tweet directly from the notification.
-*   **Direct Posting Option:** A command-line argument (`--force-post`) allows bypassing the confirmation step for direct posting
+    *   `intent` mode: "Approve ✅" opens your browser or the X app with the tweet prefilled; you hit "Post" manually. Dismiss to discard.
+    *   `api` mode: "Approve ✅" or "Discard ❌" directly from the notification; approved tweets are posted automatically.
+*   **Direct Posting Option (`api` mode only):** `--force-post` bypasses the confirmation step and posts directly.
 *   **Configurable Topics:** Easily customize the list of topics for tweet generation.
 *   **Quantization Support:** Supports 4-bit quantization using `bitsandbytes` to reduce memory usage on both CPU and GPU.
 
@@ -29,11 +32,11 @@ AutoTweet is a Python application that leverages the Llama 3 language model to g
 1.  **Model Loading:** The Llama 3 model and tokenizer are loaded from Hugging Face.
 2.  **Topic Selection:** A random topic is chosen from a predefined list.
 3.  **Tweet Generation:** A prompt is constructed, and the Llama 3 model generates a short technical tweet (under 280 characters) about the selected topic.
-4.  **Confirmation Request:** Unless `--force-post` is used, a notification with action buttons is sent to your configured `ntfy.sh` topic. The script then listens on the response topic for your decision. If `ntfy.sh` environment variables are not correctly set, the script will raise an error.
-5.  **Action Based on Confirmation:**
-    *   **Approve:** The tweet is posted to X.
-    *   **Discard:** The tweet is not posted.
-6.  **Termination:** After sending the notification and receiving a response (or timing out), the script exits. It does not loop internally.
+4.  **Review Notification:** A notification containing the tweet is sent to your configured `ntfy.sh` topic. If `ntfy.sh` environment variables are not correctly set, the script will raise an error.
+5.  **Posting:**
+    *   **`intent` mode (default):** "Approve ✅" is an X Web Intent link (`https://x.com/intent/tweet?text=...`) that opens X with the tweet prefilled; press "Post" to publish. Dismiss the notification to discard. The script exits right after sending the notification.
+    *   **`api` mode:** The script listens on `NTFY_RESPONSE_TOPIC` for your decision (or skips it with `--force-post`). On approve, the tweet is posted via the X API; on discard, nothing is posted.
+6.  **Termination:** The script runs once and exits. It does not loop internally.
 
 ## Setup
 
@@ -70,22 +73,26 @@ AutoTweet is a Python application that leverages the Llama 3 language model to g
     Create a `.env` file in the project root by copying the provided `.env.example` file (`cp .env.example .env`) and then fill in your actual values. Alternatively, you can set these environment variables directly in your system.
 
 
-    *   **X API Credentials (Required):**
+    *   **Posting Mode (Optional):**
         ```
+        POST_MODE="intent" # Default. Set to "api" to auto-post via the paid X API.
+        ```
+
+    *   **ntfy.sh Configuration (Required):**
+        ```
+        NTFY_SERVER="https://ntfy.sh" # Optional, defaults to public ntfy.sh. Use your own if self-hosting.
+        NTFY_CONFIRM_TOPIC="your_unique_confirm_topic_name" # e.g., autotweet_confirm_myuser
+        ```
+    *   **`api` mode only:**
+        ```
+        NTFY_RESPONSE_TOPIC="your_unique_response_topic_name" # e.g., autotweet_response_myuser
         X_CONSUMER_KEY="your_consumer_key"
         X_CONSUMER_SECRET="your_consumer_secret"
         X_ACCESS_TOKEN="your_access_token"
         X_ACCESS_TOKEN_SECRET="your_access_token_secret"
         X_BEARER_TOKEN="your_bearer_token"
         ```
-
-    *   **ntfy.sh Configuration (Required, unless using `--force-post`):**
-        ```
-        NTFY_SERVER="https://ntfy.sh" # Optional, defaults to public ntfy.sh. Use your own if self-hosting.
-        NTFY_CONFIRM_TOPIC="your_unique_confirm_topic_name" # e.g., autotweet_confirm_myuser
-        NTFY_RESPONSE_TOPIC="your_unique_response_topic_name" # e.g., autotweet_response_myuser
-        ```
-        *Note: Ensure `NTFY_CONFIRM_TOPIC` and `NTFY_RESPONSE_TOPIC` are unique and private to you if using the public `ntfy.sh` server.*
+        *Note: Ensure your ntfy topics are unique and private to you if using the public `ntfy.sh` server.*
 
     *   **Hugging Face Token (Optional, if not using `huggingface-cli login`):**
         ```
@@ -96,17 +103,16 @@ AutoTweet is a Python application that leverages the Llama 3 language model to g
 
 1.  Ensure all prerequisites and environment variables are set up.
 2.  Run the main script: 
-    * **With ntfy.sh confirmation (default):**
-        Make sure your `ntfy.sh` environment variables are set.
+    Make sure your `ntfy.sh` environment variables are set.
+    ```bash
+    python main.py
+    ```
+    *   **`api` mode only — skip confirmation and post directly:**
         ```bash
-        python main.py
+        POST_MODE=api python main.py --force-post
         ```
-    *   **To skip confirmation and post directly:**
-        ```bash
-        python main.py --force-post
-        ```
-3.  The script will start generating tweets.
-4.  If not using `--force-post`, subscribe to your `NTFY_CONFIRM_TOPIC` on your phone/device using the ntfy app or web client. You will receive notifications to approve, reject, or regenerate tweets.
+3.  Subscribe to your `NTFY_CONFIRM_TOPIC` on your phone/device using the ntfy app or web client.
+4.  In `intent` mode, tap "Approve ✅" to open X with the tweet prefilled, or dismiss to discard. In `api` mode, tap "Approve ✅" to auto-post or "Discard ❌" to skip.
 
 ## Configuration
 
@@ -127,7 +133,7 @@ You can modify the following in `main.py`:
 All Python dependencies are listed in `requirements.txt`. The main dependencies include:
 *   `transformers`: For interacting with Hugging Face models.
 *   `torch`: The deep learning framework used by the model.
-*   `tweepy`: For interacting with the X API.
+*   `tweepy` (optional, `api` mode only): For interacting with the X API.
 *   `requests`: For making HTTP requests (e.g., to ntfy.sh).
 *   `python-dotenv`: For managing environment variables from a `.env` file.
 

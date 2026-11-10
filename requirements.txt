@@ -1,6 +1,7 @@
 transformers
 torch
 accelerate
-tweepy
 python-dotenv
 requests
+# Optional: only needed for POST_MODE=api
+tweepy

@@ -5,8 +5,7 @@ import os
 import sys
 import time
 import gc
-import tweepy
-from notification_handler import request_confirmation
+from notification_handler import send_tweet_for_review, request_confirmation
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -15,6 +14,10 @@ LLAMA3_MODEL_NAME = "meta-llama/Meta-Llama-3-8B-Instruct"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 tokenizer = None
 generator = None
+
+# "intent" (default, free): ntfy "Approve" opens an X Web Intent link; you post manually.
+# "api" (requires paid X API access): ntfy "Approve" triggers an automatic post via the X API.
+POST_MODE = os.getenv("POST_MODE", "intent").strip().lower()
 CONSUMER_KEY = os.getenv("X_CONSUMER_KEY")
 CONSUMER_SECRET = os.getenv("X_CONSUMER_SECRET")
 ACCESS_TOKEN = os.getenv("X_ACCESS_TOKEN")
@@ -138,26 +141,56 @@ def post_process_llama3_output(raw_text: str) -> str:
         print(f"Error during post-processing: {e}. Returning raw text as fallback.", flush=True)
         return raw_text.replace("<|eot_id|>", "").strip()
 
-def main():
+def create_x_client():
     """
-    Main function to run the tweet generation process.
+    Creates a tweepy client for the X API. Only used when POST_MODE=api.
     """
     if not all([CONSUMER_KEY, CONSUMER_SECRET, ACCESS_TOKEN, ACCESS_TOKEN_SECRET]):
         print("Error: X API credentials not set. Please set X_CONSUMER_KEY, X_CONSUMER_SECRET, X_ACCESS_TOKEN, X_ACCESS_TOKEN_SECRET environment variables.", flush=True)
-        raise ValueError("Please set your X API credentials as environment variables.")
-
-    force_post = len(sys.argv) > 1 and sys.argv[1] == "--force-post"
-
-    print("Starting main function. Calling load_llama3_model...", flush=True)
-    load_llama3_model()
-
-    x_client = tweepy.Client(
-        bearer_token=BEARER_TOKEN,  
+        raise ValueError("Please set your X API credentials as environment variables (required for POST_MODE=api).")
+    try:
+        import tweepy
+    except ImportError:
+        raise ImportError("POST_MODE=api requires tweepy. Install it with 'pip install tweepy'.")
+    return tweepy.Client(
+        bearer_token=BEARER_TOKEN,
         consumer_key=CONSUMER_KEY,
         consumer_secret=CONSUMER_SECRET,
         access_token=ACCESS_TOKEN,
         access_token_secret=ACCESS_TOKEN_SECRET
     )
+
+def unload_model():
+    """
+    Frees model memory (used in api mode before the long confirmation wait).
+    """
+    global generator, tokenizer
+    print("Unloading model to free RAM...", flush=True)
+    generator = None
+    tokenizer = None
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    print("Model unloaded.", flush=True)
+
+def main():
+    """
+    Main function to run the tweet generation process.
+    POST_MODE=intent (default): the tweet is sent to ntfy for review; posting is done manually via an X Web Intent link.
+    POST_MODE=api: after ntfy approval (or --force-post), the tweet is posted via the X API.
+    """
+    if POST_MODE not in ("intent", "api"):
+        raise ValueError(f"Invalid POST_MODE '{POST_MODE}'. Use 'intent' (default) or 'api'.")
+
+    force_post = len(sys.argv) > 1 and sys.argv[1] == "--force-post"
+    if force_post and POST_MODE != "api":
+        raise ValueError("'--force-post' is only supported with POST_MODE=api.")
+
+    print(f"Post mode: {POST_MODE}", flush=True)
+    x_client = create_x_client() if POST_MODE == "api" else None
+
+    print("Starting main function. Calling load_llama3_model...", flush=True)
+    load_llama3_model()
 
     topics = [
         "kubernetes", "docker", "c++", "golang", "java", "nodejs", "redis",
@@ -172,16 +205,14 @@ def main():
         selected_topic = random.choice(topics)
         tweet = generate_technical_tweet(selected_topic)
         print(f"\n--- Proposed Tweet for Twitter ---\n'{tweet}'", flush=True)
-        
+
+        if POST_MODE == "intent":
+            intent_url = send_tweet_for_review(tweet)
+            print(f"Open this link to post manually: {intent_url}", flush=True)
+            return
+
         # Unload model to free RAM before waiting for confirmation
-        global generator, tokenizer
-        print("Unloading model to free RAM...", flush=True)
-        generator = None
-        tokenizer = None
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        print("Model unloaded.", flush=True)
+        unload_model()
 
         if force_post:
             print("Command line argument '--force-post' detected. Skipping confirmation and posting directly.", flush=True)
