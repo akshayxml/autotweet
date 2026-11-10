@@ -193,6 +193,32 @@ To run AutoTweet automatically every day, you can set it up with a systemd servi
     systemctl list-timers --all | grep autotweet
     ```
 
+4.  **Run once manually / view logs:**
+
+    ```bash
+    sudo systemctl start autotweet.service
+    journalctl -u autotweet.service -f
+    ```
+
+5.  **Update the schedule or unit files:**
+
+    Code changes to `main.py` are picked up on the next run automatically. If you change `autotweet.service` or `autotweet.timer` (e.g., `OnCalendar`), re-install them:
+
+    ```bash
+    sudo cp autotweet.service autotweet.timer /etc/systemd/system/
+    sudo systemctl daemon-reload
+    sudo systemctl restart autotweet.timer
+    ```
+
+6.  **Stop and remove the schedule:**
+
+    ```bash
+    sudo systemctl disable --now autotweet.timer
+    sudo systemctl stop autotweet.service   # stops a run that's still waiting, if there is one
+    sudo rm /etc/systemd/system/autotweet.timer /etc/systemd/system/autotweet.service
+    sudo systemctl daemon-reload
+    ```
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a pull request or open an issue.
