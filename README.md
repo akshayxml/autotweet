@@ -21,7 +21,7 @@ AutoTweet is a Python application that leverages the Llama 3 language model to g
     *   `api` (optional, paid X API): Approved tweets are posted automatically via the X API.
 *   **Notification-based Review:**
     *   Sends a push notification via a self-hosted or public `ntfy.sh` server to your device.
-    *   `intent` mode: "Approve ✅" opens your browser or the X app with the tweet prefilled; you hit "Post" manually. Dismiss to discard.
+    *   `intent` mode: "Approve ✅" opens your browser or the X app with the tweet prefilled; you hit "Post" manually. "Discard ❌" (or swiping away) drops it.
     *   `api` mode: "Approve ✅" or "Discard ❌" directly from the notification; approved tweets are posted automatically.
 *   **Direct Posting Option (`api` mode only):** `--force-post` bypasses the confirmation step and posts directly.
 *   **Configurable Topics:** Easily customize the list of topics for tweet generation.
@@ -34,7 +34,7 @@ AutoTweet is a Python application that leverages the Llama 3 language model to g
 3.  **Tweet Generation:** A prompt is constructed, and the Llama 3 model generates a short technical tweet (under 280 characters) about the selected topic.
 4.  **Review Notification:** A notification containing the tweet is sent to your configured `ntfy.sh` topic. If `ntfy.sh` environment variables are not correctly set, the script will raise an error.
 5.  **Posting:**
-    *   **`intent` mode (default):** "Approve ✅" is an X Web Intent link (`https://x.com/intent/tweet?text=...`) that opens X with the tweet prefilled; press "Post" to publish. Dismiss the notification to discard. The script exits right after sending the notification.
+    *   **`intent` mode (default):** "Approve ✅" is an X Web Intent link (`https://x.com/intent/tweet?text=...`) that opens X with the tweet prefilled; press "Post" to publish. Tap "Discard ❌" (or dismiss the notification) to drop it. The script exits right after sending the notification.
     *   **`api` mode:** The script listens on `NTFY_RESPONSE_TOPIC` for your decision (or skips it with `--force-post`). On approve, the tweet is posted via the X API; on discard, nothing is posted.
 6.  **Termination:** The script runs once and exits. It does not loop internally.
 
@@ -112,7 +112,7 @@ AutoTweet is a Python application that leverages the Llama 3 language model to g
         POST_MODE=api python main.py --force-post
         ```
 3.  Subscribe to your `NTFY_CONFIRM_TOPIC` on your phone/device using the ntfy app or web client.
-4.  In `intent` mode, tap "Approve ✅" to open X with the tweet prefilled, or dismiss to discard. In `api` mode, tap "Approve ✅" to auto-post or "Discard ❌" to skip.
+4.  In `intent` mode, tap "Approve ✅" to open X with the tweet prefilled, or "Discard ❌" to drop it. In `api` mode, tap "Approve ✅" to auto-post or "Discard ❌" to skip.
 
 ## Configuration
 

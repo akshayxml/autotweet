@@ -37,7 +37,7 @@ def send_tweet_for_review(tweet_text: str) -> str:
 
     message_payload = {
         "topic": NTFY_CONFIRM_TOPIC,
-        "message": f"Approve tweet?\n\n---\n{tweet_text}\n---\n\nTap 'Approve' to open X with this text prefilled, or dismiss to discard.",
+        "message": f"Approve tweet?\n\n---\n{tweet_text}\n---\n\nTap 'Approve' to open X with this text prefilled, or 'Discard' to drop it.",
         "title": "AutoTweet: Review Tweet",
         "priority": 4,
         "tags": ["bell", "bird"],
@@ -45,6 +45,11 @@ def send_tweet_for_review(tweet_text: str) -> str:
             {
                 "action": "view", "label": "Approve ✅",
                 "url": intent_url, "clear": True,
+            },
+            {
+                # No-op request; 'clear' dismisses the notification, discarding the tweet.
+                "action": "http", "label": "Discard ❌",
+                "url": f"{base_ntfy_url}/v1/health", "method": "GET", "clear": True,
             },
         ],
     }
